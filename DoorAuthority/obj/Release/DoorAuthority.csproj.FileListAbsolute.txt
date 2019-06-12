@@ -1,0 +1,7 @@
+F:\Codes\card\door\DoorProject\DoorAuthority\bin\DoorAuthority.dll.config
+F:\Codes\card\door\DoorProject\DoorAuthority\bin\DoorAuthority.dll
+F:\Codes\card\door\DoorProject\DoorAuthority\bin\DoorAuthority.pdb
+F:\Codes\card\door\DoorProject\DoorAuthority\obj\Release\DoorAuthority.csprojAssemblyReference.cache
+F:\Codes\card\door\DoorProject\DoorAuthority\obj\Release\DoorAuthority.csproj.CoreCompileInputs.cache
+F:\Codes\card\door\DoorProject\DoorAuthority\obj\Release\DoorAuthority.dll
+F:\Codes\card\door\DoorProject\DoorAuthority\obj\Release\DoorAuthority.pdb
