@@ -487,9 +487,9 @@ namespace DoorAuthority
         public string ChangePwd(string empid, string pwd)
         {
             string result = "";
-            string sql_openAuthority = string.Format(@"update card_user set passward ='" + pwd + "' where empid='" + empid + "'");  // 
+            string sql = string.Format(@"update card_user set passward ='" + pwd + "' where empid='" + empid + "'");  // 
           //  int count = new MarkCoeno().ExecuteNoQuery(sql_openAuthority);
-            int count = (int)SqlHelper.ExecuteScalar(MarkClass.Encrypts.DecryptByASCII(ConfigurationManager.ConnectionStrings["ConectionStr"].ConnectionString), CommandType.Text, sql_openAuthority);
+            int count = (int)SqlHelper.ExecuteNonQuery(MarkClass.Encrypts.DecryptByASCII(ConfigurationManager.ConnectionStrings["ConectionStr"].ConnectionString), CommandType.Text, sql);
             if (count > 0)
             {
                 result = "更新成功";
