@@ -10,10 +10,10 @@
   </PropertyGroup>
   <ItemGroup>
     <File Include="bin/DoorAuthority.dll">
-      <publishTime>06/05/2019 11:13:54</publishTime>
+      <publishTime>06/21/2019 16:59:34</publishTime>
     </File>
     <File Include="bin/DoorAuthority.pdb">
-      <publishTime>06/05/2019 11:13:54</publishTime>
+      <publishTime>06/21/2019 16:59:34</publishTime>
     </File>
     <File Include="bin/Newtonsoft.Json.dll">
       <publishTime>02/18/2018 09:44:54</publishTime>
@@ -25,7 +25,7 @@
       <publishTime>03/22/2019 15:28:40</publishTime>
     </File>
     <File Include="Web.config">
-      <publishTime>03/22/2019 17:57:52</publishTime>
+      <publishTime>06/13/2019 14:33:32</publishTime>
     </File>
   </ItemGroup>
 </Project>

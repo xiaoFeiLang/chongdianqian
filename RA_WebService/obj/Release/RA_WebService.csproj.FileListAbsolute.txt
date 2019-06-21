@@ -1,0 +1,6 @@
+F:\Codes\card\door\DoorProject\RA_WebService\bin\RA_WebService.dll.config
+F:\Codes\card\door\DoorProject\RA_WebService\bin\RA_WebService.dll
+F:\Codes\card\door\DoorProject\RA_WebService\bin\RA_WebService.pdb
+F:\Codes\card\door\DoorProject\RA_WebService\obj\Release\RA_WebService.csproj.CoreCompileInputs.cache
+F:\Codes\card\door\DoorProject\RA_WebService\obj\Release\RA_WebService.dll
+F:\Codes\card\door\DoorProject\RA_WebService\obj\Release\RA_WebService.pdb

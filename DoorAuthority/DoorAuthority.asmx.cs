@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Common;
 using System.Xml;
+using System.Configuration;
 
 namespace DoorAuthority
 {
@@ -32,8 +33,8 @@ namespace DoorAuthority
             //<2>使用XML对象加载XML.
             doc.Load(path);
             //通过string方式加载
-           // doc.LoadXml(xmlstr); //xml格式的字符串
-                                 //<3>获取根节点.
+            // doc.LoadXml(xmlstr); //xml格式的字符串
+            //<3>获取根节点.
             //XmlNode root = doc.SelectSingleNode("ArrayOfAuthority");
             ////或者通过以下方式获得
             ////XmlNode root = doc.FirstChild;
@@ -45,7 +46,7 @@ namespace DoorAuthority
             {
                 string id = element.GetElementsByTagName("ID")[0].InnerText;
                 string domainName = element.GetElementsByTagName("DomainName")[0].InnerText;
-                 
+
             }
             //<5>遍历输出.
             //foreach (XmlNode node in nodeList)
@@ -56,17 +57,171 @@ namespace DoorAuthority
             //    string name = node.ChildNodes[0].InnerText;
             //    string url = node.ChildNodes[1].InnerText;
 
-                 
+
             //}
-            
+
             List<Authority> list = new List<Authority>();
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 100; i++)
+            {
 
                 list.Add(new Authority() { Code = i.ToString(), Name = "laic" });
             }
 
             string xmlStr = XmlUtility.SerializeToXml<List<Authority>>(list);
             return xmlStr;
+        }
+        [WebMethod]
+        public string Door_Authority_New(string jsonText)
+        {
+            string sqlResult = "";  //执行存储过程后返回值
+            int level = 0;
+            string result = "";
+            string doorType = "";  // D 部门门禁  F 人脸  S特殊门禁
+            JArray resultArray = (JArray)JsonConvert.DeserializeObject(jsonText);
+            //["0",[{ "empid": "0062815", "deptid":"28", "AccessLevelID": "3800", "deviceid":"10"}]]
+            //["0","",[{"empid":"0062815","doorname":"201-L40-DOOR06"}]]
+            //["1","权限5-2质量管理部(PQA)",[{"empid":"0062815","doorname":""},{"empid":"0060150","doorname":""}]]
+            //["0","大门门禁",[{"empid":"0062815","doorname":"门岗-ACS01A-DOOR01"}]]
+            //["1","3",[{"empid":"0062815","doorname":""}]]
+
+            //["1",[{ "empid": "0062815", "deptid":"9", "AccessLevelID": "3250","deviceid":"400" }]]
+            //["0",[{ "empid": "0062815", "deptid":"9", "AccessLevelID": "3280","deviceid":"300" }]]
+            string doortype = resultArray[0].ToString();  // 0  特殊  1  部门
+            JArray data = (JArray)resultArray[1];  //详细表
+            if (doortype == "1")  //特殊门禁
+            {
+                for (int i = 0; i < data.Count; i++)
+                {
+                    JObject jodata = (JObject)data[i];
+                    string deptid = jodata.ContainsKey("deptid") ? jodata["deptid"].ToString() : "";
+                    string deviceid = jodata.ContainsKey("deviceid") ? jodata["deviceid"].ToString() : "";
+                    string levelid = jodata.ContainsKey("AccessLevelID") ? jodata["AccessLevelID"].ToString() : "";
+                    level = Int32.Parse(levelid);
+                    string empid = jodata.ContainsKey("empid") ? jodata["empid"].ToString() : ""; //jodata["empid"].ToString();
+                    doorType = "S"; // special 特殊门禁
+
+                    string sql_checkAuthority = string.Format(@"declare @door_result varchar(100)
+                                                                Exec [Door_CheckAuthority_new] '{0}','{1}','{2}','S',@door_result out
+                                                                select @door_result ", deptid, levelid,deviceid);
+                    DataTable dt_check = new MarkCoeno().ExecuteQuery(sql_checkAuthority).Tables[0];
+                    sqlResult =dt_check.Rows[0][0].ToString().ToString();
+                    if (sqlResult == "1")
+                    {
+                        string sql_openAuthority = string.Format(@"declare @return_value varchar(2) EXEC Door_OpenAuthority '{0}','{1}','{2}','{3}', @return_value output 
+                                                         SELECT @return_value ", empid, level, doorType, deviceid);
+                        //存储过程逻辑： 根据传入工号获取卡内码 转码 查找该卡内码是否存在级别，没有则添加级别 再加门 
+                        //加门逻辑： 拿到级别号 根据特殊门字符串拿到编号 添加
+                        DataTable dt_open = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
+                        sqlResult = Int32.Parse(dt_open.Rows[0][0].ToString()).ToString();
+
+                        if (sqlResult == "0")  //成功
+                        {
+                            result = "0";
+                        }
+                        else  //失败
+                        {
+                            result = result + empid + ",";
+                        }
+                    }
+                    else
+                    {
+                        result = sqlResult;//"该门禁级别不在所选部门管辖范围内";
+                    }
+                    
+
+                }
+            }
+            else if (doortype == "0")  //部门门禁
+            {
+                for (int i = 0; i < data.Count; i++)
+                {
+                    try
+                    {
+                        JObject jodata = (JObject)data[i];
+                        string deptid = jodata.ContainsKey("deptid") ? jodata["deptid"].ToString() : "";
+                        string levelid = jodata.ContainsKey("AccessLevelID") ? jodata["AccessLevelID"].ToString() : "";
+                        string deviceid = jodata.ContainsKey("deviceid") ? jodata["deviceid"].ToString() : "";
+
+                        level = Int32.Parse(levelid);
+                        //点击提交按钮后  判断所选级别是不是该部门下
+                        string sql_checkAuthority = string.Format(@"declare @door_result varchar(100)
+                                                                Exec [Door_CheckAuthority_new] '{0}','{1}','{2}','D',@door_result out
+                                                                select @door_result ", deptid, levelid,deviceid);
+                        DataTable dt_check = new MarkCoeno().ExecuteQuery(sql_checkAuthority).Tables[0];
+                        sqlResult = dt_check.Rows[0][0].ToString().ToString();
+                        if (sqlResult == "1") {
+                            if (level == 3569) //人脸识别-ACF管制口
+                            {
+                                level = 6;  //重新赋值  人脸系统的groupid
+                                doorType = "F"; //Face  人脸
+                            }
+                            else if (level == 3794) // 人脸识别-CELL管制口
+                            {
+                                level = 5;
+                                doorType = "F";
+                            }
+                            else if (level == 3804) // 人脸识别-实验室DOOR100
+                            {
+                                level = 11;
+                                doorType = "F";
+                            }
+                            else if (level == 3816) // 人脸识别-实验室DOOR46
+                            {
+                                level = 7;
+                                doorType = "F";
+                            }
+                            else if (level == 3803) // 人脸识别-实验室DOOR53
+                            {
+                                level = 8;
+                                doorType = "F";
+                            }
+                            else if (level == 3802) // 人脸识别-实验室DOOR58
+                            {
+                                level = 9;
+                                doorType = "F";
+                            }
+                            else if (level == 3800) // 人脸识别-实验室DOOR63
+                            {
+                                level = 10;
+                                doorType = "F";
+                            }
+                            else  //门禁系统
+                            {
+                                doorType = "D";  //Door 普通门禁
+                            }
+
+                            string empid = jodata["empid"].ToString();
+                            string sql_openAuthority = string.Format(@"declare @return_value varchar(2) EXEC Door_OpenAuthority '{0}','{1}','{2}','{3}', @return_value output 
+                                                         SELECT @return_value ", empid, level, doorType, "");
+                            DataTable dt_open = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
+                            sqlResult = Int32.Parse(dt_open.Rows[0][0].ToString()).ToString();
+                            if (sqlResult == "1")
+                            {
+                                result = empid + "已存在该权限" + ",";
+                            }
+                            else if (sqlResult == "")
+                            {
+                                
+                            }
+                        }
+                        else
+                        {
+                            result = sqlResult;
+                        }
+
+                            
+                    }
+                    catch (Exception ex)
+                    {
+                        result = ex.Message;
+                    }
+                }
+                if (result != "")
+                    result = result.TrimEnd(',');
+                else
+                    result = "0";
+            }
+            return result;
         }
         [WebMethod]
         public string Door_Authority(string jsonText)
@@ -102,10 +257,10 @@ namespace DoorAuthority
 
             if (doortype == "0")  //特殊门禁
             {
-                for(int i=0; i<data.Count; i++)
+                for (int i = 0; i < data.Count; i++)
                 {
 
-                    JObject jodata = (JObject)data[i];  
+                    JObject jodata = (JObject)data[i];
                     string doorName = jodata["doorname"].ToString();
                     if (doorName.Contains("101"))
                         doorName = doorName.Replace("101", "FAB");
@@ -114,8 +269,8 @@ namespace DoorAuthority
                     if (doorName.Contains("电梯"))
                         doorName = "";
                     string insertStr = "%";
-                    string isCS = jodata.ContainsKey("sfwcs")? jodata["sfwcs"].ToString() : "";
-                    if(isCS == "0" && isCS != "")  //为厂商 新增资料到hr_emp
+                    string isCS = jodata.ContainsKey("sfwcs") ? jodata["sfwcs"].ToString() : "";
+                    if (isCS == "0" && isCS != "")  //为厂商 新增资料到hr_emp
                     {
                         string csName = jodata["xm"].ToString();
                         string sql_InsertCS = string.Format(@"declare @door_result varchar(10)
@@ -123,7 +278,7 @@ namespace DoorAuthority
                                                 select @door_result ", csName);
                         DataTable dt_check = new MarkCoeno().ExecuteQuery(sql_InsertCS).Tables[0];
                         sqlResult = Int32.Parse(dt_check.Rows[0][0].ToString()).ToString();
-                        if(sqlResult == "1")
+                        if (sqlResult == "1")
                         {
                             result = "0";
                         }
@@ -167,19 +322,19 @@ namespace DoorAuthority
                             result = "该级别下没有查到此特殊门，开单失败";
                         }
                     }
-                    
+
                 }
             }
             else if (doortype == "1")  //部门门禁
             {
-                
+
                 // string levelName = jodata["levelname"].ToString();
                 string sql_getLevel = string.Format(@"declare @return_value int EXEC Door_GetLevel '{0}',@return_value output 
                                                     SELECT @return_value", levelname);
                 DataTable dt = new MarkCoeno().ExecuteQuery(sql_getLevel).Tables[0];
                 level = Int32.Parse(dt.Rows[0][0].ToString());  //门禁级别
                 if (level == 3569) //人脸识别-ACF管制口
-                { 
+                {
                     level = 6;  //重新赋值  人脸系统的groupid
                     doorType = "F"; //Face  人脸
                 }
@@ -217,7 +372,7 @@ namespace DoorAuthority
                 {
                     doorType = "D";  //Door 普通门禁
                 }
-                for (int i=0; i<data.Count; i++)
+                for (int i = 0; i < data.Count; i++)
                 {
                     try
                     {
@@ -256,9 +411,8 @@ namespace DoorAuthority
                             {
                             }
                         }
-                        
-                        
-                    }catch(Exception ex)
+                    }
+                    catch (Exception ex)
                     {
                         result = ex.Message;
                     }
@@ -272,26 +426,124 @@ namespace DoorAuthority
         }
 
         [WebMethod]
-        public string GetEmpInfo()
+        public string Door_CS(string jsonText)
+        {
+            //jsonText = "[[{ \"number\": \"132\", \"name\": \"PO\", \"company\": \"TT4\" }]]";
+            string result = "";
+            JArray resultArray = (JArray)JsonConvert.DeserializeObject(jsonText);
+            JArray data = (JArray)resultArray[0];
+            for (int i = 0; i < data.Count; i++)
+            {
+                JObject jodata = (JObject)data[i];
+                string csNumber = jodata["number"].ToString();
+                string csName = jodata["name"].ToString();
+                string csCompany = jodata["company"].ToString();
+                csCompany = csCompany.Contains("厂商") ? csCompany : ("厂商_" + csCompany);
+                string sql_InsertCS = string.Format(@"declare @door_result varchar(10)
+                                                Exec [Door_InsertCS] '{0}','{1}',@door_result out
+                                                select @door_result ", csName,csCompany);
+                DataTable dt_check = new MarkCoeno().ExecuteQuery(sql_InsertCS).Tables[0];
+                string sqlResult = Int32.Parse(dt_check.Rows[0][0].ToString()).ToString();
+                if (sqlResult == "1")
+                {
+                    result = "0";
+                }
+                else
+                {
+                    result = "厂商资料写入数据库失败，开单失败";
+                }
+            }
+            return result;
+        }
+
+        [WebMethod]
+        public string Login(string empid,string pwd)
         {
             string result = "";
-            string empid = "0062815";
+            string sql_openAuthority = string.Format(@"select count(*) from  card_user  where empid='" + empid + "' and passward='"+pwd+"'");  // 
+            DataTable dt = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
+            if (dt.Rows[0][0].ToString() != "0")
+            {
+                string sql_query = string.Format(@"select empid,empname,deptname from  card_user  where empid='" + empid + "'");  // 
+                DataTable dt2 = new MarkCoeno().ExecuteQuery(sql_query).Tables[0];
+                string empid1 = dt2.Rows[0]["empid"].ToString();
+                string empname = dt2.Rows[0]["empname"].ToString();
+                string deptname = dt2.Rows[0]["deptname"].ToString();
+                result = empid1 + "|" + empname + "|" + deptname;
+            }
+            else
+            {
+                result = "用户名或密码错误";
+            }
+            return result;
+        }
+        /// <summary>
+        /// 更改密码
+        /// </summary>
+        /// <param name="empid"></param>
+        /// <param name="pwd"></param>
+        /// <returns></returns>
+        [WebMethod]
+        public string ChangePwd(string empid, string pwd)
+        {
+            string result = "";
+            string sql_openAuthority = string.Format(@"update card_user set passward ='" + pwd + "' where empid='" + empid + "'");  // 
+          //  int count = new MarkCoeno().ExecuteNoQuery(sql_openAuthority);
+            int count = (int)SqlHelper.ExecuteScalar(MarkClass.Encrypts.DecryptByASCII(ConfigurationManager.ConnectionStrings["ConectionStr"].ConnectionString), CommandType.Text, sql_openAuthority);
+            if (count > 0)
+            {
+                result = "更新成功";
+                
+            }
+            else
+            {
+                result = "更新失败";
+            }
+            return result;
+        }
+        [WebMethod]
+        public string GetEmpInfo(string empid)
+        {
+            string result = "";
+            //string empid = "0062815";
             //对empid验证  goto
             string sql_openAuthority = string.Format(@"select a.empid,a.empname,b.deptname from hr_emp a 
-                                                     join hr_dept b on a.deptid=b.deptid where a.empid='"+ empid + "' and a.staid=0");  // 
+                                                     join hr_dept b on a.deptid=b.deptid where a.empid='" + empid + "' and a.staid=0");  // 
             DataTable dt = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
-            if(dt.Rows.Count>0)
+            if (dt.Rows.Count > 0)
             {
                 string empid1 = dt.Rows[0]["empid"].ToString();
                 string empname = dt.Rows[0]["empname"].ToString();
                 string deptname = dt.Rows[0]["deptname"].ToString();
-                result = empid1 + "-" + empname + "-" + deptname;
+                result = empid1 + "|" + empname + "|" + deptname;
             }
             else
             {
                 result = "没有查到相关信息";
             }
             return result;
+        }
+        /// <summary>
+        /// 充值记录
+        /// </summary>
+        /// <param name="empid"></param>
+        /// <returns></returns>
+        [WebMethod]
+        public DataTable GetRechargeInfo(string empid, string startDate, string endDate)
+        {
+            //string empid = "0062815";
+            //对empid验证  goto
+            string sql_openAuthority = string.Format(@"select empid as 工号,je as 充值金额,sdate as 充值日期,stime as 充值时间 from xf_cz_log where empid='0062815' 
+                                                       and typeid=0 and sdate between '"+startDate+"' and '"+endDate+"'");  // 
+            DataTable dt = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
+            if (dt.Rows.Count > 0)
+            {
+                return dt;
+            } else
+            {
+                 
+            }
+            return dt;
         }
 
         /// <summary>
@@ -307,19 +559,19 @@ namespace DoorAuthority
         /// </summary>
         /// <returns></returns>
         [WebMethod]
-        public string GetBalance()
+        public string GetBalance(string empid)
         {
             string result = "";
             string sql_openAuthority = string.Format(@"select a.totalje+a.lastmonthye+a.addje-a.decje-a.useje as btye,
                                                     c.totalje-c.useje as czye from xf_bt a
                                                     full join
-                                                    xf_cz c on a.empid=c.empid where a.empid='0062815' and a.strmonth='2019-06'");
+                                                    xf_cz c on a.empid=c.empid where a.empid='"+empid+"' and a.strmonth='2019-06'");
             DataTable dt = new MarkCoeno().ExecuteQuery(sql_openAuthority).Tables[0];
             if (dt.Rows.Count > 0)
             {
                 string btye = dt.Rows[0]["btye"].ToString();
                 string czye = dt.Rows[0]["czye"].ToString();
-                result = btye + "-" + czye;
+                result = btye + "|" + czye;
             }
             else
             {
